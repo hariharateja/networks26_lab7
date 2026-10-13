@@ -5,30 +5,44 @@
 #include <unistd.h>
 
 
-int main(){
-    string ON_ipaddr;
-    int ON_port;
-    std:: cin >> ON_ipaddr >> ON_port;
+int main(int argc, char* argv[]) {
 
-    int clientSocket = socket(AF_INET,SOCK_STREAM,0);
+    char* on_ip = argv[0];
+    char* vn_ip = argv[1];
+    int vn_port = std::stoi(argv[2]);   
+
+    int tcp_socket = socket(AF_INET,SOCK_STREAM,0);
     
-    sockaddr_in serverAddress;
-    serverAddress.sin_family = AF_INET;
-    serverAddress.sin_port = htons(8080);
-    serverAddress.sin_addr.s_addr = INADDR_ANY;
+    sockaddr_in on_addr{};
+    on_addr.sin_family = AF_INET;
+    on_addr.sin_port = htons(5000);
+    memset(&(on_addr.sin_zero), '\0',8);
 
-    memset(&(serverAddress.sin_zero), '\0',8);
+    inet_pton(AF_INET, on_ip,
+              &on_addr.sin_addr);
 
-    inet_pton(AF_INET, "10.183.118.42",
-              &serverAddress.sin_addr);
-
-    if( connect(clientSocket, (struct sockaddr*)&serverAddress,
-            sizeof(serverAddress)) < 0 ){
-                std :: cerr << "ERROR : connecting";
-                close(clientSocket);
+    if( connect(tcp_socket, (struct sockaddr*)&on_addr,
+            sizeof(on_addr)) < 0 ){
+                std :: cerr << "ERROR : TCP connection failed" << std::endl;
+                close(tcp_socket);
             }; 
 
-    close(clientSocket);   
+    const char* msg = "Hello ji";
+    send(tcp_socket,msg,strlen(msg),0);
+    close(tcp_socket);   
     
+    int udp_socket = socket(AF_INET,SOCK_DGRAM,0); 
+    sockaddr_in udp_addr{};
+    udp_addr.sin_family = AF_INET;
+    udp_addr.sin_port = htons(vn_port);
+    memset(&(udp_addr.sin_zero), '\0',8);
+
+    inet_pton(AF_INET, vn_ip,
+              &udp_addr.sin_addr);
+
+    if( bind(udp_socket, (struct sockaddr*)&udp_addr, sizeof(udp_addr)) < 0){
+        std::cerr << "ERROR : UDP bind failed" << std::endl;
+        close(udp_socket);
+    };
     return 0;
 }
