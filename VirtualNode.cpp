@@ -11,6 +11,19 @@ struct Connect_msg{
     uint32_t ip;
     uint16_t port;
 };
+
+struct Tuple {
+    char id;
+    uint32_t ip;
+    uint16_t port;
+    int32_t cost;
+};
+
+char my_id = "?";
+int my_costs[26];
+bool is_neighbour[26];
+sockaddr_in neighbour_addrs[26];
+
 int main(int argc, char* argv[]) {
   
     //1a,b
@@ -82,6 +95,49 @@ int main(int argc, char* argv[]) {
         //TCP socket
         if(FD_ISSET(tcp_socket,&read_fds)){
             std::cout << "ON sent a message" << std::endl;
+            //2d
+            uint32_t net_count =0;
+            if(recv(tcp_socket, &net_count, sizeof(net_count),MSG_WAITALL) < 0){
+                std::cerr << "error : didn't receive bytes " << std::endl;
+                break;
+            }
+
+            int count = ntohl(net_count);
+
+            Tuple tuples[26];
+            if(recv(tcp_socket , tuples , count*sizeof(Tuple),MSG_WAITALL) < 0){
+                std::cerr << "error : didn't receive bytes " << std::endl;
+                break;
+            }
+
+            memset(my_costs,-1,sizeof(my_costs));
+            memset(is_neighbour,false,sizeof(is_neighbour));
+
+            for(int i=0; i < count; i++){
+                char node_alphabet = tuples[i].id;
+                int cost = ntohl(tuples[i].cost);
+                
+                
+                if(cost == 0){
+                    my_id = node_alphabet;
+                    my_costs[node_alphabet - 'a'] = 0;
+                }else{
+                    my_costs[node_alphabet - 'a'] = cost;
+                    is_neighbour[node_alphabet - 'a'] = true;
+                    
+                    neighbours_addrs[node_alphabet - 'a'].sin_family = AF_INET;
+                    neighbours_addrs[node_alphabet - 'a'].sin_addr.s_addr = tuples[i].ip;
+                    neighbours_addrs[node_alphabet - 'a'].sin_port = tuples[i].port;   
+                }
+            }
+            std:: cout << my_id << " " << "0";
+            for(int i=0; i<26; i++){
+                if(is_neighbour[i]){
+                    std::cout << " " << (char)(i+'A') << "=" << my_costs[i];
+                }
+            }
+            std::cout << std::endl;
+
         }
 
         //UDP socket
