@@ -1,5 +1,6 @@
 import java.io.*;
 import java.net.*;
+import java.util.Arrays;
 
 class OracleNode {
     static int[][] cost = new int[26][26];
@@ -17,17 +18,44 @@ class OracleNode {
         return (ip[0] & 0xFF) + "." + (ip[1] & 0xFF) + "."
              + (ip[2] & 0xFF) + "." + (ip[3] & 0xFF);
     }
+    static int[][] copyCost() {
+        int[][] copy = new int[26][26];
 
+        for (int i = 0; i < 26; i++) {
+            System.arraycopy(cost[i], 0, copy[i], 0, 26);
+        }
+
+        return copy;
+    }
+
+    static void restoreCost(int[][] oldCost) {
+        for (int i = 0; i < 26; i++) {
+            System.arraycopy(oldCost[i], 0, cost[i], 0, 26);
+        }
+    }
     static boolean readConnect(int i) throws IOException{
         vnIn[i].readFully(vnIp[i]);
         vnPort[i] = vnIn[i].readUnsignedShort();
         vnIn[i].skipNBytes(2);
         return true;
     }
-    static void acceptVNs(ServerSocket server) throws IOException{
+    static void acceptVNs(ServerSocket server , String configPath) throws IOException{
         int i = 0;
+        long lastCheck = System.currentTimeMillis();
+        
         while(true){
-            Socket s = server.accept();
+            if (System.currentTimeMillis() - lastCheck >= 1000){
+                checkConfigChanges(configPath, i);
+                lastCheck = System.currentTimeMillis();
+            }
+            Socket s;
+
+            try {
+                s = server.accept();
+            } catch (SocketTimeoutException e) {
+                continue;
+            }
+
             if (i >= n) {
                 System.out.println("Rejecting extra connection");
                 s.close();
@@ -57,7 +85,42 @@ class OracleNode {
             }
         }
     }
+    static void checkConfigChanges(String path, int connected) throws IOException {
+        int oldN = n;
+        int[][] oldCost = copyCost();
 
+        if (!parsefile(path)) {
+            n = oldN;
+            restoreCost(oldCost);
+            System.err.println("Could not reload config file");
+            return;
+        }
+
+        if (n != oldN) {
+            System.err.println(
+                "Changing the number of nodes is not supported at runtime"
+            );
+
+            n = oldN;
+            restoreCost(oldCost);
+            return;
+        }
+
+        if (!Arrays.deepEquals(oldCost, cost)) {
+            System.out.println("Configuration changed!");
+            printMatrix();
+
+            if (connected == n) {
+                for (int j = 0; j < n; j++) {
+                    sendLinkState(j);
+                }
+            } else {
+                System.out.println(
+                    "Waiting for all nodes before sending LINK-STATE"
+                );
+            }
+        }
+    }
     static boolean parsefile(String path){
         int row = 0;
         try (BufferedReader br = new BufferedReader(new FileReader(path))) {
@@ -163,8 +226,9 @@ class OracleNode {
 
         ServerSocket server = new ServerSocket();
         server.bind(new InetSocketAddress(ON_PORT));
+        server.setSoTimeout(500);
         System.out.println("Listening on port " + ON_PORT + ", waiting for " + n + " nodes...");
-        acceptVNs(server);
+        acceptVNs(server,args[0]);
     }
 
 }
