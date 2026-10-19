@@ -19,6 +19,7 @@ struct Tuple {
     int32_t cost;
 };
 
+//lsp 1,3
 struct LSP_msg{
     char OriginID;
     uint32_t seq_num;
@@ -28,7 +29,9 @@ struct LSP_msg{
 int graph[26][26];
 uint32_t my_seq_num = 0;
 uint32_t highest_seq_num[26];
+int max_nodes =0;
 
+//our node details
 char my_id = '?';
 int my_costs[26];
 bool is_neighbour[26];
@@ -38,7 +41,7 @@ sockaddr_in neighbour_addrs[26];
 
 
 
-
+//helper to send lsp to all neighbours
 void send_lsp(int udp_socket){
     if(my_id == '?'){
         std::cerr << "ERROR : my_id is not set" << std::endl;
@@ -180,12 +183,51 @@ int main(int argc, char* argv[]) {
                 }
             }
             std::cout << std::endl;
-
+            //lsp send
+            send_lsp(udp_socket);
         }
 
         //UDP socket
         if(FD_ISSET(udp_socket,&read_fds)){
             std::cout << "UDP message received" << std::endl;
+            LSP_msg lsp;
+            sockaddr_in sender_addr{};
+            socklen_t len = sizeof(len);
+            //lsp receive
+            int n = recvfrom(udp_socket,&lsp,sizeof(lsp),0,(struct sockaddr*)&sender_addr,&len) ;
+            
+            if(n == sizeof(LSP_msg)){
+                char origin_id = lsp.OriginID;
+                uint32_t seq_num = ntohl(lsp.seq_num);
+
+                if(origin_id >= 'A' && origin_id <= 'Z' && seq_num > highest_seq_num[origin_id - 'A']){
+                    highest_seq_num[origin_id - 'A'] = seq_num;
+                    if(origin_id -'A' + 1  > max_nodes){
+                        max_nodes = origin_id - 'A' + 1;
+                    }
+
+                    for(int i=0; i<26; i++){
+                        int c  = ntohl(lsp.costs[i]);
+                        graph[origin_id - 'A'][i] = ntohl(c);
+                        graph[i][origin_id - 'A'] = ntohl(c);
+                        if(c != -1 && i+1 > max_nodes){
+                            max_nodes = i+1;
+                        }
+                    }
+                    for(int i=0;i<26;i++){
+                        if(is_neighbour[i]){
+                            //do not send back to the sender
+                            if(neighbour_addrs[i].sin_addr.s_addr == sender_addr.sin_addr.s_addr && neighbour_addrs[i].sin_port == sender_addr.sin_port){
+                                continue;
+                            }
+                            sendto(udp_socket,&lsp,sizeof(lsp),0,(struct sockaddr*)&neighbour_addrs[i],sizeof(neighbour_addrs[i]));
+                        }
+                    }
+                    
+                }
+
+            }
+
         }
 
         usleep(500000); //500ms
