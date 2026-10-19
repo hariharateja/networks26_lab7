@@ -79,7 +79,11 @@ void send_lsp(int udp_socket){
     }
 }
 int main(int argc, char* argv[]) {
-   
+    
+
+    memset(graph, -1, sizeof(graph));
+    memset(my_costs, -1, sizeof(my_costs));
+
     //1a,b
     char* on_ip = argv[1];
     char* vn_ip = argv[2];
@@ -154,7 +158,7 @@ int main(int argc, char* argv[]) {
             std::cout << "ON sent a message" << std::endl;
             //2d
             uint32_t net_count =0;
-            if(recv(tcp_socket, &net_count, sizeof(net_count),MSG_WAITALL) < 0){
+            if(recv(tcp_socket, &net_count, sizeof(net_count),MSG_WAITALL) <= 0){
                 std::cerr << "error : didn't receive bytes " << std::endl;
                 break;
             }
@@ -162,7 +166,7 @@ int main(int argc, char* argv[]) {
             int count = ntohl(net_count);
 
             Tuple tuples[26];
-            if(recv(tcp_socket , tuples , count*sizeof(Tuple),MSG_WAITALL) < 0){
+            if(recv(tcp_socket , tuples , count*sizeof(Tuple),MSG_WAITALL) <= 0){
                 std::cerr << "error : didn't receive bytes " << std::endl;
                 break;
             }
@@ -173,7 +177,7 @@ int main(int argc, char* argv[]) {
             for(int i=0; i < count; i++){
                 char node_alphabet = tuples[i].id;
                 int cost = ntohl(tuples[i].cost);
-                
+                if (node_alphabet - 'A' + 1 > max_nodes) max_nodes = node_alphabet - 'A' + 1;
                 
                 if(cost == 0){
                     my_id = node_alphabet;
@@ -188,8 +192,8 @@ int main(int argc, char* argv[]) {
                 }
             }
             for(int i =0;i<26;i++){
-                graph[i][node_alphabet - 'A'] = my_costs[i];
-                graph[node_alphabet - 'A'][i] = my_costs[i];
+                graph[i][my_id - 'A'] = my_costs[i];
+                graph[my_id - 'A'][i] = my_costs[i];
             }
             std:: cout << my_id << " " << "0";
             for(int i=0; i<26; i++){
@@ -207,7 +211,7 @@ int main(int argc, char* argv[]) {
             std::cout << "UDP message received" << std::endl;
             LSP_msg lsp;
             sockaddr_in sender_addr{};
-            socklen_t len = sizeof(len);
+            socklen_t len = sizeof(sender_addr);
             //lsp receive
             int n = recvfrom(udp_socket,&lsp,sizeof(lsp),0,(struct sockaddr*)&sender_addr,&len) ;
             
@@ -223,8 +227,8 @@ int main(int argc, char* argv[]) {
 
                     for(int i=0; i<26; i++){
                         int c  = ntohl(lsp.costs[i]);
-                        graph[origin_id - 'A'][i] = ntohl(c);
-                        graph[i][origin_id - 'A'] = ntohl(c);
+                        graph[origin_id - 'A'][i] = c;
+                        graph[i][origin_id - 'A'] = c;
                         if(c != -1 && i+1 > max_nodes){
                             max_nodes = i+1;
                         }
@@ -252,7 +256,7 @@ int main(int argc, char* argv[]) {
                 send_lsp(udp_socket);
                 print_graph();
             }
-
+            last_timer = current_time;
         }
 
         usleep(500000); //500ms
