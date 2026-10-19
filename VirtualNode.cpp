@@ -39,7 +39,21 @@ sockaddr_in neighbour_addrs[26];
 
 
 
-
+//helper print graph
+void print_graph() {
+    std::cout << "\n---Graph at Node " << my_id << " ---\n";
+    for (int i = 0; i < max_nodes - 1; i++) {
+        // Print tabs for upper-right triangle alignment
+        for (int t = 0; t < i; t++) std::cout << "\t";
+        
+        for (int j = i + 1; j < max_nodes; j++) {
+            std::cout << graph[i][j];
+            if (j < max_nodes - 1) std::cout << "\t";
+        }
+        std::cout << "\n";
+    }
+    std::cout << "---------------------------------------\n";
+}
 
 //helper to send lsp to all neighbours
 void send_lsp(int udp_socket){
@@ -113,7 +127,8 @@ int main(int argc, char* argv[]) {
     
     // send(tcp_socket,)
     send(tcp_socket,&msg,sizeof(msg),0);
-    
+    //time 
+    time_t last_timer = time(nullptr);
     //2c
     while(true){
         fd_set read_fds;
@@ -226,6 +241,16 @@ int main(int argc, char* argv[]) {
                     
                 }
 
+            }
+
+        }
+
+        //timer
+        time_t current_time = time(nullptr);
+        if(difftime(current_time,last_timer) >= 10){
+            if(my_id != '?'){
+                send_lsp(udp_socket);
+                print_graph();
             }
 
         }
