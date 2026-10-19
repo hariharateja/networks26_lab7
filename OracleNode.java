@@ -6,8 +6,6 @@ class OracleNode {
     static int n = 0;
 
     static int ON_PORT = 5000;
-    static int MSG_CONNECT = 1;
-    static int MSG_LINK_STATE = 2;
     
     static Socket[]           vnSock = new Socket[26];
     static DataInputStream[]  vnIn   = new DataInputStream[26];
@@ -21,20 +19,20 @@ class OracleNode {
     }
 
     static boolean readConnect(int i) throws IOException{
-        int type = vnIn[i].readUnsignedByte();
-        int len  = vnIn[i].readUnsignedShort();
-        if (type != MSG_CONNECT || len != 6) {
-            System.err.println("Bad CONNECT: type=" + type + " len=" + len);
-            return false;
-        }
         vnIn[i].readFully(vnIp[i]);
         vnPort[i] = vnIn[i].readUnsignedShort();
+        vnIn[i].skipNBytes(2);
         return true;
     }
     static void acceptVNs(ServerSocket server) throws IOException{
         int i = 0;
-        while(i < n){
+        while(true){
             Socket s = server.accept();
+            if (i >= n) {
+                System.out.println("Rejecting extra connection");
+                s.close();
+                continue;
+            }
             try{
                 vnSock[i] = s;
                 vnIn[i]   = new DataInputStream(s.getInputStream());
@@ -50,17 +48,21 @@ class OracleNode {
             }
             System.out.println((char)('A' + i) + " = " + ipToString(vnIp[i]) + ":" + vnPort[i] + "(TCP from " + s.getInetAddress().getHostAddress() + ":" + s.getPort() + ")");
             i++;
+            if (i == n) {
+                System.out.println("All " + n + " nodes connected.");
 
+                for (int j = 0; j < n; j++) {
+                    sendLinkState(j);
+                }
+            }
         }
     }
 
     static boolean parsefile(String path){
         int row = 0;
-        int lineno = 0;
         try (BufferedReader br = new BufferedReader(new FileReader(path))) {
             String line;
             while ((line = br.readLine()) != null) {
-                lineno++;
                 line = line.trim();
                 if (line.isEmpty() || line.startsWith("#")) continue;
 
@@ -71,10 +73,6 @@ class OracleNode {
                         for (int k = 0; k < 26; k++)
                             cost[i][k] = (i == k) ? 0 : -1;
                 }
-                for (int i = 0; i < 26; i++)
-                    for (int k = 0; k < 26; k++)
-                        cost[i][k] = (i == k) ? 0 : -1;
-
                 for (int j = 0; j < words.length; j++) {
                     int c = Integer.parseInt(words[j]);
                     int k = row + 1 + j;
@@ -102,8 +100,60 @@ class OracleNode {
             System.out.println();
         }
     }
+    static void sendLinkState(int id) throws IOException {
 
-    public static void main(String[] args){
+        // 1. Count the node itself and its direct neighbours
+        int count = 1;
+
+        for (int j = 0; j < n; j++) {
+            if (j != id && cost[id][j] != -1) {
+                count++;
+            }
+        }
+
+        // 3. Get the output stream for this VN
+        DataOutputStream out = vnOut[id];
+
+        if (vnSock[id] == null || vnSock[id].isClosed() || out == null) {
+            throw new IOException(
+                "No active connection for node " + (char) ('A' + id));
+        }
+
+        // 4. Write the LINK-STATE message header
+        out.writeInt(count);
+
+        // 5. Write this node's own tuple (cost = 0)
+        out.writeByte('A' + id);    
+        out.write(new byte[3]);     
+        out.write(vnIp[id]);        
+        out.writeShort(vnPort[id]); 
+        out.write(new byte[2]);
+        out.writeInt(0);            
+
+        // 6. Write one tuple for each direct neighbour
+        for (int j = 0; j < n; j++) {
+
+            if (j == id || cost[id][j] == -1) {
+                continue;
+            }
+
+            out.writeByte('A' + j);
+            out.write(new byte[3]);
+            out.write(vnIp[j]);
+            out.writeShort(vnPort[j]);
+            out.write(new byte[2]);
+            out.writeInt(cost[id][j]);
+        }
+
+        // 7. Send buffered data
+        out.flush();
+
+        System.out.println(
+            "Sent LINK-STATE to " + (char) ('A' + id)
+            + " with " + count + " tuples");
+    }
+
+    public static void main(String[] args) throws IOException{
         if(args.length != 1){
             System.out.println("need a config file:");
             return;
@@ -115,7 +165,6 @@ class OracleNode {
         server.bind(new InetSocketAddress(ON_PORT));
         System.out.println("Listening on port " + ON_PORT + ", waiting for " + n + " nodes...");
         acceptVNs(server);
-        System.out.println("All " + n + " nodes connected.");
     }
 
 }
