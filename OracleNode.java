@@ -221,7 +221,7 @@ class OracleNode {
         ServerSocket server = new ServerSocket();
         server.bind(new InetSocketAddress(ON_PORT));
         server.setSoTimeout(500);
-        System.out.println("Listening on port " + ON_PORT + ", waiting for " + n + " nodes...");
+        System.out.println("Listening on port " + ON_PORT + ", waiting for " + n + " nodes.");
         acceptVNs(server,args[0]);
     }
 
