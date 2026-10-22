@@ -203,7 +203,6 @@ class OracleNode {
             out.writeInt(cost[id][j]);
         }
 
-        // 7. Send buffered data
         out.flush();
 
         System.out.println(
