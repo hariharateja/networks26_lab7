@@ -6,7 +6,7 @@ class OracleNode {
     static int[][] cost = new int[26][26];
     static int n = 0;
 
-    static int ON_PORT = 6000;
+    static int ON_PORT = 5000;
     
     static Socket[]           vnSock = new Socket[26];
     static DataInputStream[]  vnIn   = new DataInputStream[26];
