@@ -6,7 +6,7 @@ class OracleNode {
     static int[][] cost = new int[26][26];
     static int n = 0;
 
-    static int ON_PORT = 5000;
+    static int ON_PORT = 6000;
     
     static Socket[]           vnSock = new Socket[26];
     static DataInputStream[]  vnIn   = new DataInputStream[26];
@@ -165,7 +165,6 @@ class OracleNode {
     }
     static void sendLinkState(int id) throws IOException {
 
-        // 1. Count the node itself and its direct neighbours
         int count = 1;
 
         for (int j = 0; j < n; j++) {
@@ -174,7 +173,6 @@ class OracleNode {
             }
         }
 
-        // 3. Get the output stream for this VN
         DataOutputStream out = vnOut[id];
 
         if (vnSock[id] == null || vnSock[id].isClosed() || out == null) {
@@ -182,10 +180,8 @@ class OracleNode {
                 "No active connection for node " + (char) ('A' + id));
         }
 
-        // 4. Write the LINK-STATE message header
         out.writeInt(count);
 
-        // 5. Write this node's own tuple (cost = 0)
         out.writeByte('A' + id);    
         out.write(new byte[3]);     
         out.write(vnIp[id]);        
@@ -193,7 +189,6 @@ class OracleNode {
         out.write(new byte[2]);
         out.writeInt(0);            
 
-        // 6. Write one tuple for each direct neighbour
         for (int j = 0; j < n; j++) {
 
             if (j == id || cost[id][j] == -1) {
